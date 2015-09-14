@@ -110,10 +110,14 @@ module.exports = (app) => {
         let text = req.body.reply;
 
         if (text.length > 140){
-            return req.flash('error', 'Status is over 140 characters')
+            req.flash('error', 'Status is over 140 characters');
+            res.redirect('/compose');
+            return
         }
         if (!text){
-            req.flash('error', 'Status cannot be empty')
+            req.flash('error', 'Status cannot be empty');
+            res.redirect('/compose');
+            return
         }
 
         var twitterClient = new Twitter({
@@ -152,6 +156,66 @@ module.exports = (app) => {
         let id = req.params.id;
         await twitterClient.promise.post('/favorites/destroy', {id});
         res.end()
+    }));
+
+    app.get('/reply/:id', isLoggedIn, then(async(req, res) => {
+        let twitterClient = new Twitter({
+            consumer_key: twitterConfig.consumerKey,
+            consumer_secret: twitterConfig.consumerSecret,
+            access_token_key: req.user.twitter.token,
+            access_token_secret: req.user.twitter.secret
+        });
+
+        let id = req.params.id;
+
+        let [tweet] = await twitterClient.promise.get('/statuses/show/' + id);
+        let post = {
+            id: tweet.id_str,
+            image: tweet.user.profile_image_url,
+            text: tweet.text,
+            name: tweet.user.name,
+            username: '@'+tweet.user.screen_name,
+            liked: tweet.favorited,
+            network: networks.twitter.network
+        };
+
+        res.render('reply.ejs', {
+            message: req.flash('error'),
+            post: post
+        })
+    }));
+
+    app.post('/reply/:id', isLoggedIn, then(async(req, res) => {
+        let text = req.body.reply;
+        let id = req.params.id;
+
+        if (text.length > 140) {
+            req.flash('error', 'Replay is over 140 characters');
+            res.redirect('/reply/' + id);
+            return
+        }
+
+        if (text.length < 1) {
+            return req.flash('error', 'Replay cannot be empty');
+            res.redirect('/reply/' + id);
+            return
+        }
+
+        let twitterClient = new Twitter({
+            consumer_key: twitterConfig.consumerKey,
+            consumer_secret: twitterConfig.consumerSecret,
+            access_token_key: req.user.twitter.token,
+            access_token_secret: req.user.twitter.secret
+        });
+
+        await twitterClient.promise.post('/statuses/update', {
+            status : text,
+            in_reply_to_status_id: id
+        });
+
+        res.redirect('/timeline')
     }))
+
+
 
 };
