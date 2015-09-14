@@ -141,7 +141,7 @@ module.exports = (app) => {
         });
 
         let id = req.params.id;
-        await twitterClient.promise.post('/favorites/create', {id});
+        await twitterClient.promise.post('/favorites/create', {id: id});
         res.end()
     }));
 
@@ -154,7 +154,7 @@ module.exports = (app) => {
         });
 
         let id = req.params.id;
-        await twitterClient.promise.post('/favorites/destroy', {id});
+        await twitterClient.promise.post('/favorites/destroy', {id: id});
         res.end()
     }));
 
@@ -168,15 +168,13 @@ module.exports = (app) => {
 
         let id = req.params.id;
 
-        let [tweet] = await twitterClient.promise.get('/statuses/show/' + id);
+        let [tweet] = await twitterClient.promise.get(`/statuses/show/${id}`);
         let post = {
             id: tweet.id_str,
             image: tweet.user.profile_image_url,
             text: tweet.text,
             name: tweet.user.name,
-            username: '@'+tweet.user.screen_name,
-            liked: tweet.favorited,
-            network: networks.twitter.network
+            username: '@'+tweet.user.screen_name
         };
 
         res.render('reply.ejs', {
@@ -191,13 +189,13 @@ module.exports = (app) => {
 
         if (text.length > 140) {
             req.flash('error', 'Replay is over 140 characters');
-            res.redirect('/reply/' + id);
+            res.redirect(`/reply/${id}`);
             return
         }
 
         if (text.length < 1) {
-            return req.flash('error', 'Replay cannot be empty');
-            res.redirect('/reply/' + id);
+            req.flash('error', 'Replay cannot be empty');
+            res.redirect(`/reply/${id}`);
             return
         }
 
@@ -214,8 +212,59 @@ module.exports = (app) => {
         });
 
         res.redirect('/timeline')
+    }));
+
+    app.get('/share/:id', isLoggedIn, then(async(req, res) => {
+        let id = req.params.id;
+
+        let twitterClient = new Twitter({
+            consumer_key: twitterConfig.consumerKey,
+            consumer_secret: twitterConfig.consumerSecret,
+            access_token_key: req.user.twitter.token,
+            access_token_secret: req.user.twitter.secret
+        });
+
+        let [tweet] = await twitterClient.promise.get(`/statuses/show/${id}`);
+        let post = {
+            id : tweet.id_str,
+            image: tweet.user.profile_image_url,
+            text: tweet.text,
+            name: tweet.user.name,
+            username: '@' + tweet.user.screen_name
+        };
+
+        res.render('share.ejs', {
+            message: req.flash('error'),
+            post: post
+        })
+    }));
+
+    app.post('/share/:id', isLoggedIn, then(async(req, res) => {
+        let text = req.body.share;
+        let id = req.params.id;
+
+        if (text.length > 140) {
+            req.flash('error', 'Message is over 140 characters');
+            res.redirect(`/share/${id}`);
+            return
+        }
+
+        let twitterClient = new Twitter({
+            consumer_key: twitterConfig.consumerKey,
+            consumer_secret: twitterConfig.consumerSecret,
+            access_token_key: req.user.twitter.token,
+            access_token_secret: req.user.twitter.secret
+        });
+
+        try {
+            await twitterClient.promise.post(`/statuses/retweet/${id}`, {
+                status: text
+            });
+        }
+        catch(e){
+            console.log(e, e.message);
+        }
+
+        res.redirect('/timeline')
     }))
-
-
-
 };
