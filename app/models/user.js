@@ -20,6 +20,7 @@ let userSchema = mongoose.Schema({
         twitter: {
             id: String,
             token: String,
+            secret: String,
             email: String,
             displayName: String,
             username: String
@@ -55,11 +56,12 @@ userSchema.methods.linkFacebookAccount = function ({account, token}) {
     this.facebook.token = token;
 };
 
-userSchema.methods.linkTwitterAccount = function ({account, token}) {
+userSchema.methods.linkTwitterAccount = function ({account, token, secret}) {
     this.twitter.id = account.id;
     this.twitter.username = account.username;
     this.twitter.displayName = account.displayName;
     this.twitter.token = token;
+    this.twitter.secret = secret;
 };
 
 userSchema.methods.linkGoogleAccount = function ({account, token}) {

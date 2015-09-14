@@ -14,7 +14,7 @@ function useExternalPassportStrategy(OauthStrategy, config, field) {
     config.passReqToCallback = true;
     passport.use(new OauthStrategy(config, nodeifyit(authCB, {spread: true})));
 
-    async function authCB(req, token, _ignored_, account) {
+    async function authCB(req, token, secret, account) {
         console.log('Authorizing account: ', account);
 
         let conditions = {};
@@ -23,7 +23,7 @@ function useExternalPassportStrategy(OauthStrategy, config, field) {
         if (!user) {
             user = new User();
         }
-        await user.linkAccount(account.provider, {account: account, token: token});
+        await user.linkAccount(account.provider, {account: account, token: token, secret: secret});
         await user.save();
 
         return user;

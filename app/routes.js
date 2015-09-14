@@ -1,9 +1,25 @@
 let isLoggedIn = require('./middlewares/isLoggedIn');
 let util = require('util');
+let Twitter = require('twitter');
+let then = require('express-then');
+
 let scope = 'email';
+let posts = require('../data/posts');
+
+let networks = {
+    twitter: {
+        network: {
+            icon: 'twitter',
+            name: 'Twitter',
+            class: 'btn-info'
+        }
+    }
+};
+
 
 module.exports = (app) => {
     let passport = app.passport;
+    let twitterConfig = app.config.auth.twitter;
 
     app.get('/', (req, res) => res.render('index.ejs'));
 
@@ -53,5 +69,62 @@ module.exports = (app) => {
         successRedirect: '/profile',
         failureRedirect: '/profile',
         failureFlash: true
+    }));
+
+    app.get('/timeline', isLoggedIn, then(async (req, res) => {
+        var twitterClient = new Twitter({
+            consumer_key: twitterConfig.consumerKey,
+            consumer_secret: twitterConfig.consumerSecret,
+            access_token_key: req.user.twitter.token,
+            access_token_secret: req.user.twitter.secret
+        });
+
+        let [tweets] = await twitterClient.promise.get('/statuses/home_timeline.json', {count: 20});
+
+        posts = tweets.map(tweet => {
+            return {
+                id: tweet.id,
+                image: tweet.user.profile_image_url,
+                text: tweet.text,
+                name: tweet.user.name,
+                username: "@" + tweet.user.screen_name,
+                liked: tweet.favorited,
+                network: networks.twitter.network
+            }
+        });
+
+        res.render('timeline.ejs', {
+            message: req.flash('error'),
+            posts: posts
+
+        })
+    }));
+
+    app.get('/compose', isLoggedIn, (req, res) => {
+        res.render('compose.ejs', {
+            message: req.flash('error')
+        })
+    });
+
+    app.post('/compose', isLoggedIn, then(async (req, res) => {
+        let text = req.body.reply;
+
+        if (text.length > 140){
+            return req.flash('error', 'Status is over 140 characters')
+        }
+        if (!text){
+            req.flash('error', 'Status cannot be empty')
+        }
+
+        var twitterClient = new Twitter({
+            consumer_key: twitterConfig.consumerKey,
+            consumer_secret: twitterConfig.consumerSecret,
+            access_token_key: req.user.twitter.token,
+            access_token_secret: req.user.twitter.secret
+        });
+
+        await twitterClient.promise.post('/statuses/update', {status : text});
+
+        res.redirect('/timeline');
     }));
 };
